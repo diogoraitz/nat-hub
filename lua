@@ -7,7 +7,7 @@
   Troque USER/REPO pelo seu GitHub apos o upload.
 ]]
 
-local VERSION = "v7"
+local VERSION = "v7.1"
 local ZERO = Vector3.new(0, 0, 0)
 
 -- ─── Erro visível (se o script falhar) ───────────────
@@ -151,9 +151,18 @@ local function discoverRemotes()
                 end
                 if n:find("flower") or n:find("collect") then Remotes.Flower = Remotes.Flower or child end
                 if n:find("buy") or n:find("purchase") or n:find("upgrade")
-                    or n:find("tycoon") or n:find("build") or n:find("click") then
+                    or n:find("tycoon") or n:find("build") or n:find("click")
+                    or n:find("button") or n:find("item") or n:find("unlock") then
                     table.insert(Remotes.BuyList, child)
                 end
+            end
+        end
+        for _, name in ipairs({ "Buy", "Purchase", "BuyButton", "Upgrade", "UpgradeButton", "TycoonBuy", "ClickButton" }) do
+            local r = folder:FindFirstChild(name, true)
+            if r and (r:IsA("RemoteEvent") or r:IsA("RemoteFunction")) then
+                local found = false
+                for _, x in ipairs(Remotes.BuyList) do if x == r then found = true break end end
+                if not found then table.insert(Remotes.BuyList, r) end
             end
         end
     end
@@ -460,33 +469,103 @@ local function nextBoatSquad()
     return nil
 end
 
--- ─── Auto upgrade base ───────────────────────────────
-local function getPlayerPlot()
-    local keys = { LocalPlayer.Name, tostring(LocalPlayer.UserId) }
-    local folderNames = { "Bases", "Base", "Plots", "Tycoons", "PlayerBases", "TycoonBases" }
-
-    local roots = { Workspace }
-    for _, n in ipairs({ "Map", "Game", "World" }) do
-        local r = Workspace:FindFirstChild(n)
-        if r then table.insert(roots, r) end
+-- ─── Auto upgrade base (NAT: Workspace.Tycoons) ─────
+local function getNAT_Tycoon()
+    local folder = Workspace:FindFirstChild("Tycoons")
+    if not folder then return nil end
+    local pname = LocalPlayer.Name
+    local plot = folder:FindFirstChild(pname .. " tycoon")
+        or folder:FindFirstChild(pname .. " Tycoon")
+        or folder:FindFirstChild(pname)
+    if plot then return plot end
+    for _, ch in ipairs(folder:GetChildren()) do
+        if ch.Name:find(pname, 1, true) then return ch end
     end
+    return nil
+end
 
-    for _, root in ipairs(roots) do
-        for _, fname in ipairs(folderNames) do
-            local folder = root:FindFirstChild(fname, true)
-            if folder then
-                for _, key in ipairs(keys) do
-                    local plot = folder:FindFirstChild(key)
-                    if plot then return plot end
-                end
+local function getPlayerPlot()
+    local tycoon = getNAT_Tycoon()
+    if tycoon then return tycoon end
+
+    local keys = { LocalPlayer.Name, tostring(LocalPlayer.UserId) }
+    local folderNames = { "Bases", "Base", "Plots", "Tycoons", "PlayerBases" }
+    for _, fname in ipairs(folderNames) do
+        local folder = Workspace:FindFirstChild(fname)
+        if folder then
+            for _, key in ipairs(keys) do
+                local plot = folder:FindFirstChild(key)
+                if plot then return plot end
             end
-        end
-        for _, key in ipairs(keys) do
-            local plot = root:FindFirstChild(key, true)
-            if plot and plot:IsA("Model") then return plot end
         end
     end
     return nil
+end
+
+local function tryTycoonButtonBuys(plot)
+    if not plot then return 0 end
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local n = 0
+    local buyKeywords = { "button", "purchase", "buy", "upgrade", "unlock", "pad", "claim" }
+
+    for _, desc in ipairs(plot:GetDescendants()) do
+        if desc:IsA("ClickDetector") then
+            pcall(function()
+                if fireclickdetector then
+                    fireclickdetector(desc)
+                    n = n + 1
+                end
+            end)
+        end
+
+        if desc:IsA("BasePart") then
+            local nm = desc.Name:lower()
+            local isBuy = false
+            for _, kw in ipairs(buyKeywords) do
+                if nm:find(kw) then isBuy = true break end
+            end
+            if not isBuy and desc.Parent then
+                local pn = desc.Parent.Name:lower()
+                for _, kw in ipairs(buyKeywords) do
+                    if pn:find(kw) then isBuy = true break end
+                end
+            end
+            if isBuy or desc:GetAttribute("Cost") or desc:GetAttribute("Price") then
+                for _, remote in ipairs(Remotes.BuyList) do
+                    pcall(function() remote:FireServer(desc) end)
+                    pcall(function() remote:FireServer(desc.Parent) end)
+                    pcall(function() remote:FireServer(desc.Name) end)
+                end
+                if hrp and firetouchinterest then
+                    pcall(function()
+                        firetouchinterest(desc, hrp, 0)
+                        task.wait(0.03)
+                        firetouchinterest(desc, hrp, 1)
+                    end)
+                    n = n + 1
+                end
+            end
+        end
+
+        if (desc:IsA("Model") or desc:IsA("Folder")) and desc.Parent and desc.Parent.Name == "Models" then
+            for _, remote in ipairs(Remotes.BuyList) do
+                pcall(function() remote:FireServer(desc) end)
+                pcall(function() remote:FireServer(desc.Name) end)
+            end
+        end
+    end
+
+    local models = plot:FindFirstChild("Models") or plot:FindFirstChild("Buttons") or plot:FindFirstChild("Purchases")
+    if models then
+        for _, item in ipairs(models:GetChildren()) do
+            for _, remote in ipairs(Remotes.BuyList) do
+                pcall(function() remote:FireServer(item) end)
+                pcall(function() remote:FireServer(item.Name) end)
+            end
+            n = n + 1
+        end
+    end
+    return n
 end
 
 local function tryProximityBuys(plot)
@@ -548,20 +627,13 @@ end
 
 local function runAutoUpgrade()
     local plot = getPlayerPlot()
-    local bought = tryProximityBuys(plot) + tryRemoteBuys()
-
-    -- Fallback: touch unpurchased tycoon buttons on plot
-    if plot and S.UpgradeBuildings then
-        for _, part in ipairs(plot:GetDescendants()) do
-            if part:IsA("BasePart") and part.Name:lower():find("button") then
-                pcall(function()
-                    firetouchinterest(part, LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart"), 0)
-                    task.wait()
-                    firetouchinterest(part, LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart"), 1)
-                end)
-            end
-        end
+    if not plot then
+        plot = getNAT_Tycoon()
     end
+    local bought = 0
+    bought = bought + tryProximityBuys(plot)
+    bought = bought + tryTycoonButtonBuys(plot)
+    bought = bought + tryRemoteBuys()
     return bought
 end
 
@@ -798,51 +870,7 @@ local function startSmartGroundLoop()
     end))
 end
 
-local function startAutoUpgradeLoop()
-    stopThread("AutoUpgrade")
-    if not S.AutoUpgrade and not S.MasterAFK then return end
-
-    trackThread("AutoUpgrade", task.spawn(function()
-        while S.AutoUpgrade or S.MasterAFK do
-            if S.AutoBuy or S.AutoUpgrade then runAutoUpgrade() end
-            tryUseComputer()
-            tryCollectFlowers()
-            tryOpenTreasure()
-            tryRedeemCodes()
-            task.wait(S.UpgradeInterval)
-        end
-    end))
-end
-
-local function startMasterAFK(on)
-    S.MasterAFK = on
-    if on then
-        applyZoneSplit()
-        S.AutoUpgrade = true
-        S.AutoBuy = true
-        S.SmartBoatAttack = true
-        S.SmartGroundAttack = true
-        S.AntiAFK = true
-        discoverRemotes()
-        tryRedeemCodes()
-        startAllSquads()
-        startSmartBoatLoop()
-        startSmartGroundLoop()
-        startAutoUpgradeLoop()
-        safeNotify({ Title = "AFK Farm ON", Content = "Ataque + barcos + chao + upgrade + anti-AFK", Duration = 5 })
-    else
-        stopAllSquadThreads()
-        S.SmartBoatAttack = false
-        S.SmartGroundAttack = false
-        S.AutoUpgrade = false
-        stopThread("SmartBoat")
-        stopThread("SmartGround")
-        stopThread("AutoUpgrade")
-        safeNotify({ Title = "AFK Farm OFF", Content = "Tudo desligado.", Duration = 3 })
-    end
-end
-
--- ─── Presets ─────────────────────────────────────────
+-- ─── Presets (ANTES do Master AFK — evita nil) ───────
 local function applyEvenSplit()
     S.Assignment = buildDefaultAssignment()
     safeNotify({ Title = "Even Split", Content = "25 points across 6 squads.", Duration = 3 })
@@ -877,6 +905,89 @@ local function applyBoatFocus()
         F = { "Boat Point B", "Boat Point D", "Boat Point F", "Boat Point H" },
     }
     safeNotify({ Title = "Boat Focus", Content = "All squads prioritize boat points.", Duration = 4 })
+end
+
+local function burstAttackAllPoints()
+    if not Remotes.AllTarget then return end
+    task.spawn(function()
+        for _, pt in ipairs(ALL_POINTS) do
+            for _, sq in ipairs(SQUADS) do
+                if S.ActiveSquads[sq] then
+                    sendSquad(pt, sq)
+                    task.wait(0.06)
+                end
+            end
+        end
+        safeNotify({ Title = "Burst Attack", Content = "Todos os esquadroes enviados!", Duration = 4 })
+    end)
+end
+
+local function startAutoUpgradeLoop()
+    stopThread("AutoUpgrade")
+    if not S.AutoUpgrade and not S.MasterAFK then return end
+
+    trackThread("AutoUpgrade", task.spawn(function()
+        while S.AutoUpgrade or S.MasterAFK do
+            if S.AutoBuy or S.AutoUpgrade then
+                local n = runAutoUpgrade()
+                if n > 0 then
+                    print("[NAT] Tycoon buy attempts:", n)
+                end
+            end
+            if S.AutoComputer then tryUseComputer() end
+            if S.AutoCollectFlower then tryCollectFlowers() end
+            if S.AutoOpenTreasure then tryOpenTreasure() end
+            if S.MasterAFK or S.AutoRedeemCodes then tryRedeemCodes() end
+            task.wait(S.UpgradeInterval)
+        end
+    end))
+end
+
+local function startMasterAFK(on)
+    S.MasterAFK = on
+    if on then
+        discoverRemotes()
+        applyZoneSplit()
+        S.AutoAttack = true
+        S.AutoUpgrade = true
+        S.AutoBuy = true
+        S.AutoRedeemCodes = true
+        S.AutoComputer = true
+        S.SmartBoatAttack = true
+        S.SmartGroundAttack = true
+        S.AntiAFK = true
+
+        local tycoon = getNAT_Tycoon()
+        if tycoon then
+            print("[NAT] Tycoon encontrado:", tycoon:GetFullName())
+        else
+            warn("[NAT] Tycoon nao encontrado em Workspace.Tycoons")
+        end
+
+        tryRedeemCodes()
+        burstAttackAllPoints()
+        startAllSquads()
+        startSmartBoatLoop()
+        startSmartGroundLoop()
+        startAutoUpgradeLoop()
+
+        safeNotify({
+            Title = "AFK Farm ON",
+            Content = "Ataque + boat + chao + tycoon upgrade. Veja tropas se movendo.",
+            Duration = 6,
+        })
+    else
+        S.MasterAFK = false
+        S.AutoAttack = false
+        stopAllSquadThreads()
+        S.SmartBoatAttack = false
+        S.SmartGroundAttack = false
+        S.AutoUpgrade = false
+        stopThread("SmartBoat")
+        stopThread("SmartGround")
+        stopThread("AutoUpgrade")
+        safeNotify({ Title = "AFK Farm OFF", Content = "Tudo desligado.", Duration = 3 })
+    end
 end
 
 -- ─── Character helpers ───────────────────────────────
@@ -1131,7 +1242,13 @@ FarmTab:CreateToggle({
     Name = "MASTER AFK FARM",
     CurrentValue = false,
     Flag = "MasterAFK",
-    Callback = function(v) startMasterAFK(v) end,
+    Callback = function(v)
+        local ok, err = pcall(function() startMasterAFK(v) end)
+        if not ok then
+            warn("[NAT] Master AFK erro:", err)
+            showError("Master AFK: " .. tostring(err))
+        end
+    end,
 })
 FarmTab:CreateToggle({ Name = "Auto Redeem Codes", CurrentValue = false, Flag = "AutoRedeem",
     Callback = function(v) S.AutoRedeemCodes = v end })
@@ -1345,8 +1462,28 @@ UpgradeTab:CreateButton({
     Name = "Upgrade once NOW",
     Callback = function()
         discoverRemotes()
+        local t = getNAT_Tycoon()
         local n = runAutoUpgrade()
-        Rayfield:Notify({ Title = "Upgrade", Content = "Attempts: " .. tostring(n), Duration = 3 })
+        safeNotify({
+            Title = "Tycoon Upgrade",
+            Content = (t and ("Base: " .. t.Name .. " | ") or "Tycoon NAO achado! ") .. "Tentativas: " .. n,
+            Duration = 5,
+        })
+    end,
+})
+UpgradeTab:CreateButton({
+    Name = "Listar botoes do tycoon (F9)",
+    Callback = function()
+        local t = getNAT_Tycoon()
+        if not t then warn("[NAT] Sem tycoon"); return end
+        local c = 0
+        for _, d in ipairs(t:GetDescendants()) do
+            if d:IsA("ProximityPrompt") or d:IsA("ClickDetector") or d.Name:lower():find("button") then
+                print("[NAT Tycoon]", d:GetFullName())
+                c = c + 1
+            end
+        end
+        safeNotify({ Title = "Tycoon", Content = c .. " botoes listados no F9", Duration = 4 })
     end,
 })
 
