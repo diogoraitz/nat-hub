@@ -1,18 +1,28 @@
 --// Inicialização Prévia
 pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/blackowl1231/Z3US/refs/heads/main/Games/other.lua"))() end)
 
---// Serviços
+--// ==========================================
+--// SERVIÇOS E VARIÁVEIS GLOBAIS
+--// ==========================================
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
---// Prevenção de Duplicação da UI
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+--// ==========================================
+--// MÓDULO 1: Z3US LOADER UI
+--// ==========================================
+
+-- Prevenção de Duplicação da UI
 if CoreGui:FindFirstChild("Z3US Loader") then
 	CoreGui["Z3US Loader"]:Destroy()
 end
 
---// Configurações de Tema (Cores)
+-- Configurações de Tema (Cores da UI)
 local Theme = {
 	Background = Color3.fromRGB(17, 18, 20),
 	FrameHover = Color3.fromRGB(25, 27, 30),
@@ -24,10 +34,8 @@ local Theme = {
 	ToggleOff = Color3.fromRGB(60, 60, 60)
 }
 
--- Animação Padrão
 local FastTween = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
---// Variáveis de Estado
 local State = {
 	SelectedScript = nil,
 	Autoload = true,
@@ -35,16 +43,15 @@ local State = {
 	Version = "New"
 }
 
---// Criação da UI Principal
+-- Criação da UI Principal
 local z3USLoader = Instance.new("ScreenGui")
 z3USLoader.Name = "Z3US Loader"
 z3USLoader.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 z3USLoader.ResetOnSpawn = false
 z3USLoader.IgnoreGuiInset = true
 
--- Tenta colocar no CoreGui (Exploits), senão usa PlayerGui
 pcall(function() z3USLoader.Parent = CoreGui end)
-if not z3USLoader.Parent then z3USLoader.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
+if not z3USLoader.Parent then z3USLoader.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
 local frame = Instance.new("Frame")
 frame.Name = "MainFrame"
@@ -58,7 +65,7 @@ local uICorner = Instance.new("UICorner")
 uICorner.CornerRadius = UDim.new(0, 25)
 uICorner.Parent = frame
 
---// Arrastar Janela Suave (Smooth Drag)
+-- Arrastar Janela Suave
 local dragging, dragInput, dragStart, startPos
 frame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -88,7 +95,7 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 
---// Logo
+-- Logo
 local logo = Instance.new("ImageLabel")
 logo.Name = "Logo"
 logo.BackgroundTransparency = 1
@@ -98,7 +105,7 @@ logo.AnchorPoint = Vector2.new(0.5, 0.5)
 logo.Size = UDim2.fromOffset(175, 175)
 logo.Parent = frame
 
---// Construtor Automático de Textos
+-- Construtor de Textos
 local function CreateText(name, text, pos, size, color, fontSize)
 	local lbl = Instance.new("TextLabel")
 	lbl.Name = name
@@ -116,7 +123,7 @@ end
 local textLabel5 = CreateText("ThanksText", "Thank you for using Z3US <3", UDim2.fromScale(0.628, 0.821), UDim2.fromOffset(200, 50), Color3.fromRGB(40, 58, 85), 34)
 local textLabel6 = CreateText("StatusText", "No Script Selected", UDim2.fromScale(0.645, 0.447), UDim2.fromOffset(200, 50), Theme.TextNormal, 34)
 
---// Botão Fechar "X"
+-- Botão Fechar
 local closeButton = Instance.new("TextButton")
 closeButton.Name = "CloseButton"
 closeButton.BackgroundTransparency = 1
@@ -132,7 +139,7 @@ closeButton.MouseEnter:Connect(function() TweenService:Create(closeButton, FastT
 closeButton.MouseLeave:Connect(function() TweenService:Create(closeButton, FastTween, {TextColor3 = Color3.fromRGB(58, 67, 98)}):Play() end)
 closeButton.MouseButton1Click:Connect(function() z3USLoader:Destroy() end)
 
---// Painel de Aviso (Rivals Ban Warning)
+-- Painel de Aviso
 local blackout = Instance.new("Frame")
 blackout.Name = "Blackout"
 blackout.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -197,7 +204,7 @@ local function toggleConfirm(state)
 	end
 end
 
---// Construtor Automático dos Painéis Laterais (Toggles)
+-- Painéis Laterais (Toggles)
 local function createTogglePanel(name, pos, size)
 	local panel = Instance.new("Frame")
 	panel.Name = name
@@ -254,7 +261,7 @@ local autoloadBtn = createToggle(rivalsToggleContainer, "Autoload:", "ON", UDim2
 local silentloadBtn = createToggle(rivalsToggleContainer, "Silentload:", "OFF", UDim2.fromScale(0.55, 0.15), UDim2.fromOffset(120, 45), false)
 local versionBtn = createToggle(versionToggleContainer, "Version:", "New", UDim2.fromScale(0.05, 0), UDim2.fromOffset(260, 50), true)
 
---// Geração Dinâmica dos Botões de Seleção de Jogo
+-- Geração dos Botões de Jogos
 local scriptsData = {
 	{name = "Arsenal", yPos = 0.0415},
 	{name = "Planks", yPos = 0.1778},
@@ -268,7 +275,6 @@ local scriptsData = {
 local scriptButtons = {}
 
 local function SelectScript(scriptName)
-	-- Reseta as bordas
 	for _, data in pairs(scriptButtons) do
 		TweenService:Create(data.stroke, FastTween, {Color = Theme.StrokeNormal}):Play()
 	end
@@ -309,13 +315,11 @@ for _, data in ipairs(scriptsData) do
 	lbl.TextScaled = true 
 	lbl.Parent = btnFrame
 	
-	-- Botão Invisível para Click (Hitbox)
 	local clickBtn = Instance.new("TextButton", btnFrame)
 	clickBtn.Size = UDim2.fromScale(1, 1)
 	clickBtn.BackgroundTransparency = 1
 	clickBtn.Text = ""
 	
-	-- Animação Hover
 	clickBtn.MouseEnter:Connect(function()
 		if State.SelectedScript ~= data.name then
 			TweenService:Create(stroke, FastTween, {Color = Theme.StrokeHover}):Play()
@@ -339,7 +343,6 @@ for _, data in ipairs(scriptsData) do
 	scriptButtons[data.name] = {frame = btnFrame, stroke = stroke}
 end
 
--- Funcionalidade do painel de aviso
 confirmYes.MouseButton1Click:Connect(function()
 	toggleConfirm(false)
 	SelectScript("Rivals")
@@ -349,7 +352,7 @@ confirmNo.MouseButton1Click:Connect(function()
 	toggleConfirm(false)
 end)
 
---// Botão Gigante de LOAD
+-- Botão de LOAD
 local loadbtn = Instance.new("TextButton")
 loadbtn.Name = "Loadbtn"
 loadbtn.BackgroundColor3 = Theme.StrokeNormal
@@ -362,16 +365,11 @@ loadbtn.FontFace = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWe
 Instance.new("UICorner", loadbtn).CornerRadius = UDim.new(0, 25)
 loadbtn.Parent = frame
 
-loadbtn.MouseEnter:Connect(function()
-	TweenService:Create(loadbtn, FastTween, {BackgroundColor3 = Theme.StrokeSelected}):Play()
-end)
-loadbtn.MouseLeave:Connect(function()
-	TweenService:Create(loadbtn, FastTween, {BackgroundColor3 = Theme.StrokeNormal}):Play()
-end)
+loadbtn.MouseEnter:Connect(function() TweenService:Create(loadbtn, FastTween, {BackgroundColor3 = Theme.StrokeSelected}):Play() end)
+loadbtn.MouseLeave:Connect(function() TweenService:Create(loadbtn, FastTween, {BackgroundColor3 = Theme.StrokeNormal}):Play() end)
 
 loadbtn.MouseButton1Click:Connect(function()
 	local opt = State.SelectedScript
-	
 	if opt then
 		loadbtn.Text = "LOADING..."
 		TweenService:Create(loadbtn, FastTween, {BackgroundColor3 = Color3.fromRGB(100, 200, 100)}):Play()
@@ -379,28 +377,23 @@ loadbtn.MouseButton1Click:Connect(function()
 		task.spawn(function()
 			if opt == "Arsenal" then
 				loadstring(game:HttpGet("https://raw.githubusercontent.com/blackowl1231/Z3US/refs/heads/main/Games/Z3US%20Arsenal%20Beta.lua"))()
-				
 			elseif opt == "Planks" then
 				loadstring(game:HttpGet("https://raw.githubusercontent.com/blackowl1231/Z3US/refs/heads/main/Games/Z3US%20Planks.lua"))()
-				
 			elseif opt == "OneTap" then
 				getgenv().SCRIPT_KEY = ""
 				loadstring(game:HttpGet("https://api.jnkie.com/api/v1/luascripts/public/2548ffbebdf21063cd4083f93a27ac276d44d1cb6503093d9c3290c3dfd954e3/download"))()
-				
 			elseif opt == "Rivals" then
 				getgenv().autoload = State.Autoload
 				getgenv().silentload = State.Silentload
 				getgenv().SCRIPT_KEY = ""
 				
 				repeat task.wait() until game:IsLoaded()
-				local lp = Players.LocalPlayer
-				repeat task.wait() until lp and lp.Character
-				local pg = lp:WaitForChild("PlayerGui")
+				repeat task.wait() until LocalPlayer and LocalPlayer.Character
+				local pg = LocalPlayer:WaitForChild("PlayerGui")
 				repeat task.wait() until not pg:FindFirstChild("LoadingScreen")
 				
 				loadstring(game:HttpGet("https://api.junkie-development.de/api/v1/luascripts/public/8be52e21a0145a401c446ca7ab2b5df9bd327ea80b0cf1d2fe99e442edd0f9c9/download"))()
 				loadstring(game:HttpGet("https://raw.githubusercontent.com/blackowl1231/Z3US/refs/heads/main/Games/Test.lua"))()
-				
 			elseif opt == "Counterblox" then
 				if State.Version == "New" then
 					getgenv().SCRIPT_KEY = ""
@@ -408,10 +401,8 @@ loadbtn.MouseButton1Click:Connect(function()
 				else
 					loadstring(game:HttpGet("https://raw.githubusercontent.com/blackowl1231/Z3US/refs/heads/main/Games/Z3US%20Counterblox.lua"))()
 				end
-				
 			elseif opt == "Gunfight Arena" then
 				loadstring(game:HttpGet("https://raw.githubusercontent.com/blackowl1231/Z3US/refs/heads/main/Games/Z3US%20Gunfight%20Arena.lua"))()
-				
 			elseif opt == "Universal" then
 				loadstring(game:HttpGet("https://raw.githubusercontent.com/blackowl1231/Z3US/refs/heads/main/Games/Z3US%20Universal.lua"))()
 			end
@@ -423,14 +414,12 @@ loadbtn.MouseButton1Click:Connect(function()
 	else
 		loadbtn.Text = "PLEASE SELECT A SCRIPT!"
 		TweenService:Create(loadbtn, FastTween, {BackgroundColor3 = Color3.fromRGB(150, 50, 50)}):Play()
-		
 		task.wait(1.5)
 		loadbtn.Text = "LOAD SCRIPT"
 		TweenService:Create(loadbtn, FastTween, {BackgroundColor3 = Theme.StrokeNormal}):Play()
 	end
 end)
 
---// Lógica dos Toggles
 autoloadBtn.MouseButton1Click:Connect(function()
 	State.Autoload = not State.Autoload
 	TweenService:Create(autoloadBtn, FastTween, {BackgroundColor3 = State.Autoload and Theme.ToggleOn or Theme.ToggleOff}):Play()
@@ -447,4 +436,100 @@ versionBtn.MouseButton1Click:Connect(function()
 	State.Version = State.Version == "New" and "Old" or "New"
 	TweenService:Create(versionBtn, FastTween, {BackgroundColor3 = State.Version == "New" and Theme.ToggleOn or Theme.ToggleOff}):Play()
 	versionBtn.Text = State.Version
+end)
+
+--// ==========================================
+--// MÓDULO 2: AIMBOT & FOV UNIVERSAL
+--// ==========================================
+
+local AimbotConfig = {
+	AimbotKey = Enum.UserInputType.MouseButton2, -- Segure o Botão Direito do Mouse para mirar
+	AimPart = "Head", -- Parte do corpo (Head = Cabeça | HumanoidRootPart = Peito)
+	Smoothness = 0.5, -- Suavidade da mira (0.1 = Rápido | 0.9 = Lento/Legit)
+	
+	FOV = 100,
+	ShowFOV = true,
+	FOVColor = Color3.fromRGB(128, 0, 128),
+	FOVThickness = 2,
+	
+	BaseTransparency = 0.2,
+	LockTransparency = 1,
+}
+
+local IsAiming = false
+
+local FOVring = Drawing.new("Circle")
+FOVring.Visible = AimbotConfig.ShowFOV
+FOVring.Thickness = AimbotConfig.FOVThickness
+FOVring.Color = AimbotConfig.FOVColor
+FOVring.Filled = false
+FOVring.Radius = AimbotConfig.FOV
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if not gameProcessed and input.UserInputType == AimbotConfig.AimbotKey then
+		IsAiming = true
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == AimbotConfig.AimbotKey then
+		IsAiming = false
+	end
+end)
+
+-- Deletar o Aimbot/FOV e também fechar a UI ao apertar Delete
+UserInputService.InputBegan:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.Delete then
+		RunService:UnbindFromRenderStep("AimbotLoop")
+		FOVring:Remove()
+		if CoreGui:FindFirstChild("Z3US Loader") then
+			CoreGui["Z3US Loader"]:Destroy()
+		end
+	end
+end)
+
+local function GetClosestPlayerInFOV()
+	local NearestPlayer = nil
+	local ShortestDistance = AimbotConfig.FOV
+	local MousePos = UserInputService:GetMouseLocation()
+
+	for _, Player in ipairs(Players:GetPlayers()) do
+		if Player ~= LocalPlayer and Player.Character and Player.Character:FindFirstChild(AimbotConfig.AimPart) then
+			local Humanoid = Player.Character:FindFirstChildOfClass("Humanoid")
+			if Humanoid and Humanoid.Health > 0 then
+				local Part = Player.Character[AimbotConfig.AimPart]
+				local ScreenPos, OnScreen = Camera:WorldToViewportPoint(Part.Position)
+				
+				if OnScreen then
+					local Distance = (Vector2.new(ScreenPos.X, ScreenPos.Y) - MousePos).Magnitude
+					if Distance < ShortestDistance then
+						ShortestDistance = Distance
+						NearestPlayer = Player
+					end
+				end
+			end
+		end
+	end
+
+	return NearestPlayer, ShortestDistance
+end
+
+RunService:BindToRenderStep("AimbotLoop", Enum.RenderPriority.Camera.Value + 1, function()
+	local MousePos = UserInputService:GetMouseLocation()
+	FOVring.Position = MousePos 
+
+	local ClosestPlayer, Distance = GetClosestPlayerInFOV()
+
+	if ClosestPlayer then
+		local dynamicAlpha = 1 - (Distance / AimbotConfig.FOV)
+		FOVring.Transparency = AimbotConfig.BaseTransparency + (dynamicAlpha * (AimbotConfig.LockTransparency - AimbotConfig.BaseTransparency))
+	else
+		FOVring.Transparency = AimbotConfig.BaseTransparency
+	end
+
+	if IsAiming and ClosestPlayer then
+		local TargetPart = ClosestPlayer.Character[AimbotConfig.AimPart]
+		local TargetCFrame = CFrame.new(Camera.CFrame.Position, TargetPart.Position)
+		Camera.CFrame = Camera.CFrame:Lerp(TargetCFrame, 1 - AimbotConfig.Smoothness)
+	end
 end)
