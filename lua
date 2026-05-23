@@ -42,7 +42,7 @@ z3USLoader.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 z3USLoader.ResetOnSpawn = false
 z3USLoader.IgnoreGuiInset = true
 
--- Tenta colocar no CoreGui (Exploits), senão usa PlayerGui (Roblox Studio)
+-- Tenta colocar no CoreGui (Exploits), senão usa PlayerGui
 pcall(function() z3USLoader.Parent = CoreGui end)
 if not z3USLoader.Parent then z3USLoader.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
 
@@ -255,7 +255,6 @@ local silentloadBtn = createToggle(rivalsToggleContainer, "Silentload:", "OFF", 
 local versionBtn = createToggle(versionToggleContainer, "Version:", "New", UDim2.fromScale(0.05, 0), UDim2.fromOffset(260, 50), true)
 
 --// Geração Dinâmica dos Botões de Seleção de Jogo
--- Muito mais limpo: Adicione jogos aqui sem criar 20 linhas extras de UI para cada um.
 local scriptsData = {
 	{name = "Arsenal", yPos = 0.0415},
 	{name = "Planks", yPos = 0.1778},
@@ -307,7 +306,7 @@ for _, data in ipairs(scriptsData) do
 	Instance.new("UICorner", btnFrame).CornerRadius = UDim.new(0, 25)
 	
 	local lbl = CreateText("Label", data.name, UDim2.fromScale(0.05, 0.15), UDim2.fromScale(0.9, 0.7), Theme.TextNormal, 42)
-	lbl.TextScaled = true -- Se ajusta independente do tamanho do nome
+	lbl.TextScaled = true 
 	lbl.Parent = btnFrame
 	
 	-- Botão Invisível para Click (Hitbox)
@@ -377,7 +376,6 @@ loadbtn.MouseButton1Click:Connect(function()
 		loadbtn.Text = "LOADING..."
 		TweenService:Create(loadbtn, FastTween, {BackgroundColor3 = Color3.fromRGB(100, 200, 100)}):Play()
 		
-		-- Utiliza task.spawn para impedir que UI congele enquanto executa ou espera pelo jogo
 		task.spawn(function()
 			if opt == "Arsenal" then
 				loadstring(game:HttpGet("https://raw.githubusercontent.com/blackowl1231/Z3US/refs/heads/main/Games/Z3US%20Arsenal%20Beta.lua"))()
@@ -394,7 +392,6 @@ loadbtn.MouseButton1Click:Connect(function()
 				getgenv().silentload = State.Silentload
 				getgenv().SCRIPT_KEY = ""
 				
-				-- Espera Carregamento
 				repeat task.wait() until game:IsLoaded()
 				local lp = Players.LocalPlayer
 				repeat task.wait() until lp and lp.Character
